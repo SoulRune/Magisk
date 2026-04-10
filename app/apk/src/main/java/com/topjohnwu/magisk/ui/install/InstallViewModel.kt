@@ -57,6 +57,9 @@ class InstallViewModel(svc: NetworkService, markwon: Markwon) : BaseViewModel() 
                 R.id.method_inactive_slot -> {
                     SecondSlotWarningDialog().show()
                 }
+                R.id.method_system -> {
+                    // System install selected; nothing to do at selection time
+                }
             }
         }
 
@@ -93,6 +96,7 @@ class InstallViewModel(svc: NetworkService, markwon: Markwon) : BaseViewModel() 
         when (method) {
             R.id.method_patch -> FlashFragment.patch(data.value!!).navigate(true)
             R.id.method_direct -> FlashFragment.flash(false).navigate(true)
+            R.id.method_system -> FlashFragment.flashSystem().navigate(true)
             R.id.method_inactive_slot -> FlashFragment.flash(true).navigate(true)
             else -> error("Unknown value")
         }

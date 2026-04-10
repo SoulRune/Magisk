@@ -120,6 +120,10 @@ class FlashFragment : BaseFragment<FragmentFlashMd2Binding>(), MenuProvider {
             action = flashType(isSecondSlot)
         )
 
+        fun flashSystem() = MainDirections.actionFlashFragment(
+            action = Const.Value.FLASH_SYSTEM
+        )
+
         /* Patching is understood as injecting img files with magisk */
 
         fun patch(uri: Uri) = MainDirections.actionFlashFragment(

@@ -586,7 +586,17 @@ abstract class MagiskInstallImpl protected constructor(
     protected suspend fun secondSlot() =
         findSecondary() && extractFiles() && patchBoot() && flashBoot() && postOTA()
 
-    protected suspend fun fixEnv() = extractFiles() && "fix_env $installDir".sh().isSuccess
+    protected suspend fun fixEnv(magiskBinOverride: String? = null): Boolean {
+        if (!::installDir.isInitialized) {
+            if (!extractFiles()) return false
+        }
+        return if (magiskBinOverride == null) {
+            "fix_env $installDir".sh().isSuccess
+        } else {
+            // Try writing to provided system path
+            ("MAGISKBIN=$magiskBinOverride fix_env $installDir").sh().isSuccess
+        }
+    }
 
     protected fun restore() = findImage() && "restore_imgs $srcBoot".sh().isSuccess
 
@@ -667,6 +677,30 @@ class MagiskInstaller {
         logs: MutableList<String>
     ) : ConsoleInstaller(console, logs) {
         override suspend fun operations() = fixEnv()
+    }
+
+    class System(
+        console: MutableList<String>,
+        logs: MutableList<String>
+    ) : ConsoleInstaller(console, logs) {
+        override suspend fun operations(): Boolean {
+            val candidates = listOf(
+                "/system/adb/magisk",
+                "/system/xbin/magisk",
+                "/system/bin/magisk",
+                "/vendor/bin/magisk"
+            )
+            for (p in candidates) {
+                console.add("- Trying system path: $p")
+                // Attempt remount to allow writing to /system
+                ("mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null").sh()
+                if (fixEnv(p)) {
+                    run_migrations()
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     class Uninstall(
