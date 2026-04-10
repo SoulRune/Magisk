@@ -462,16 +462,14 @@ direct_install_system(){
   }
   cleanup_system_installation || return 1
 
-  local magisk_applet=magisk32 magisk_name=magisk32
-  if [ "$IS64BIT" == true ]; then
-    magisk_name=magisk64
-    magisk_applet="magisk32 magisk64"
-  fi
+  local magisk_name=magisk
 
   ui_print "- Copy files to system partition"
   mkdir -p "$MIRRORDIR$MAGISKSYSTEMDIR" || return 1
-  for magisk in $magisk_applet magiskpolicy magiskinit stub.apk; do
-    cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
+  for magisk in magisk magisk32 magiskpolicy magiskinit stub.apk; do
+    if [ -f "$INSTALLDIR/$magisk" ]; then
+      cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
+    fi
   done
   echo -e "SYSTEMMODE=true\nRECOVERYMODE=false" >"$MIRRORDIR$MAGISKSYSTEMDIR/config"
   chcon -R u:object_r:system_file:s0 "$MIRRORDIR$MAGISKSYSTEMDIR"
@@ -505,7 +503,7 @@ direct_install_system(){
           ui_print "- Target sepolicy is $sepol"
           backup_restore "$MIRRORDIR$sepol" || { ui_print "! Backup failed"; return 1; }
           cp -af "$MIRRORDIR$sepol" "$INSTALLDIR/sepol.in"
-          if ! "$INSTALLDIR/magiskinit" --patch-sepol "$INSTALLDIR/sepol.in" "$INSTALLDIR/sepol.out" || ! cp -af "$INSTALLDIR/sepol.out" "$MIRRORDIR$sepol"; then
+          if ! "$INSTALLDIR/magiskpolicy" --load "$INSTALLDIR/sepol.in" --save "$INSTALLDIR/sepol.out" --magisk || ! cp -af "$INSTALLDIR/sepol.out" "$MIRRORDIR$sepol"; then
             ui_print "! Unable to patch sepolicy file"
             restore_from_bak "$MIRRORDIR$sepol"
             return 1

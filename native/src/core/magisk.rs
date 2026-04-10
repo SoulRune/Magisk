@@ -524,7 +524,7 @@ impl MagiskAction {
                     return Ok(-1);
                 }
                 // Copy all binaries
-                let bins = ["magisk32", "magisk64", "magiskpolicy", "stub.apk"];
+                let bins = ["magisk", "magisk32", "magiskpolicy", "stub.apk"];
                 for bin in &bins {
                     let src = format!("{}/{}", bin_dir, bin);
                     let dest = format!("{}/{}", magisk_tmp, bin);
@@ -538,11 +538,6 @@ impl MagiskAction {
                 }
                 let _ = fs::create_dir_all(INTERNAL_DIR);
                 let _ = fs::create_dir(DEVICEDIR);
-                // Create magisk symlink based on architecture
-                #[cfg(target_pointer_width = "64")]
-                let _ = symlink("./magisk64", "./magisk");
-                #[cfg(target_pointer_width = "32")]
-                let _ = symlink("./magisk32", "./magisk");
                 install_applet(magisk_tmp);
             }
             MountSbin(_) => {
