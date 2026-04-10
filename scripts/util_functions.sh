@@ -581,8 +581,17 @@ run_migrations() {
 copy_preinit_files() {
   local PREINITDIR=$MAGISKTMP/.magisk/preinit
   if [ ! -d $PREINITDIR ]; then
-    ui_print "- Unable to find preinit dir"
-    return 1
+    # If preinit is unavailable on this device, skip quietly when there are no rule files.
+    for r in /data/adb/modules*/*/sepolicy.rule; do
+      [ -f "$r" ] || continue
+      local MODDIR=${r%/*}
+      [ -f $MODDIR/disable ] && continue
+      [ -f $MODDIR/remove ] && continue
+      [ -f $MODDIR/update ] && continue
+      ui_print "- Unable to find preinit dir (skip copying sepolicy.rule)"
+      return 0
+    done
+    return 0
   fi
 
   # Copy all enabled sepolicy.rule

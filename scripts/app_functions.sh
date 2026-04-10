@@ -334,7 +334,9 @@ cleanup_system_installation(){
 
 installer_cleanup(){
   if $BOOTMODE; then
-    umount -l "/proc/$$/attr"
+    if mountpoint -q "/proc/$$/attr"; then
+      umount -l "/proc/$$/attr" 2>/dev/null
+    fi
   else
     recovery_cleanup
   fi
@@ -359,7 +361,9 @@ install_addond(){
   blockdev --setrw "$BLOCKNAME"
   rm -rf "$BLOCKNAME"
   mount -o rw,remount /
-  mount -o rw,remount /system
+  if mountpoint -q /system; then
+    mount -o rw,remount /system
+  fi
   rm -rf $addond/99-magisk.sh 2>/dev/null
   rm -rf $addond/magisk 2>/dev/null
   if [ "$SYSTEM_INSTALL" == "true" ]; then
@@ -376,7 +380,9 @@ install_addond(){
     cp "$AppApkPath" $addond/magisk/magisk.apk
   fi
   mount -o ro,remount /
-  mount -o ro,remount /system
+  if mountpoint -q /system; then
+    mount -o ro,remount /system
+  fi
 }
 
 direct_install_system(){
@@ -397,7 +403,9 @@ direct_install_system(){
   local MAGISKTMP_TO_INSTALL=/sbin
 
   if $BOOTMODE; then
-    umount -l "/proc/$$/attr"
+    if mountpoint -q "/proc/$$/attr"; then
+      umount -l "/proc/$$/attr" 2>/dev/null
+    fi
     mount -t tmpfs -o 'mode=0755' tmpfs "$MIRRORDIR" || return 1
     if is_rootfs; then
       ROOTDIR=/
@@ -460,7 +468,7 @@ direct_install_system(){
     fi
   fi
 
-  ui_print "- Cleaning up enviroment..."
+  ui_print "- Cleaning up environment..."
   {
     local checkfile="$MIRRORDIR/system/.check_$(random_str 10 20)"
     dd if=/dev/zero of="$checkfile" bs=1024 count=20000 || \
