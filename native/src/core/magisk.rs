@@ -528,7 +528,7 @@ impl MagiskAction {
                 for bin in &bins {
                     let src = format!("{}/{}", bin_dir, bin);
                     let dest = format!("{}/{}", magisk_tmp, bin);
-                    if Path::new(&src).exists() {
+                    if std::path::Path::new(&src).exists() {
                         let _ = fs::copy(&src, &dest);
                         let _ = fs::set_permissions(&dest, fs::Permissions::from_mode(0o755));
                     }
