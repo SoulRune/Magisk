@@ -277,10 +277,18 @@ force_bind_mount(){
 }
 
 backup_restore(){
-  if [ ! -f "${1}.gz" ] && [ -f "$1" ]; then
+  if [ -f "${1}.gz" ]; then
+    # Backup exists - validate and restore from it
+    if gzip -t "${1}.gz" 2>/dev/null; then
+      rm -rf "$1" && gzip -kdf "${1}.gz" && return 0
+    else
+      # Corrupt backup, remove it
+      rm -rf "${1}.gz"
+    fi
+  fi
+  # No valid backup - create one if original exists
+  if [ -f "$1" ]; then
     gzip -k "$1" && return 0
-  elif [ -f "${1}.gz" ]; then
-    rm -rf "$1" && gzip -kdf "${1}.gz" && return 0
   fi
   return 1
 }
@@ -381,7 +389,8 @@ direct_install_system(){
   local INSTALLDIR="$1"
 
   ui_print "- Remount system partition as read-write"
-  local MIRRORDIR="/proc/$$/attr" ROOTDIR SYSTEMDIR VENDORDIR
+  MIRRORDIR="/proc/$$/attr"
+  local ROOTDIR SYSTEMDIR VENDORDIR
 
   ROOTDIR="$MIRRORDIR/system_root"
   SYSTEMDIR="$MIRRORDIR/system"
@@ -432,7 +441,8 @@ direct_install_system(){
       ln -fs ./system_root/odm "$ODM_DIR"
     fi
   else
-    local MIRRORDIR="/" ROOTDIR SYSTEMDIR VENDORDIR
+    MIRRORDIR="/"
+    local ROOTDIR SYSTEMDIR VENDORDIR
     ROOTDIR="$MIRRORDIR/system_root"
     SYSTEMDIR="$MIRRORDIR/system"
     VENDORDIR="$MIRRORDIR/vendor"
