@@ -15,8 +15,8 @@ use nix::sys::statfs::{FsType, TMPFS_MAGIC, statfs};
 use std::ffi::c_char;
 use std::fs;
 use std::os::fd::AsFd;
-use std::os::unix::fs::symlink;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::process::exit;
 
@@ -117,7 +117,6 @@ fn clone_dir(src: &str, dest: &str) {
 fn mount_sbin() -> i32 {
     use nix::mount::mount;
     if is_rootfs() {
-        // Rootfs: remount / rw, backup /sbin to /root, mount tmpfs on /sbin
         if let Err(e) = mount(
             None::<&str>,
             "/",
@@ -131,10 +130,8 @@ fn mount_sbin() -> i32 {
         let _ = fs::create_dir_all("/sbin");
         let _ = fs::remove_dir_all("/root");
         let _ = fs::create_dir_all("/root");
-        // Clone /sbin contents to /root (recursive, like Kitsune's link_path)
         clone_dir("/sbin", "/root");
         if tmpfs_mount("/sbin") != 0 {
-            // Remount / ro on failure
             let _ = mount(
                 None::<&str>,
                 "/",
@@ -145,9 +142,7 @@ fn mount_sbin() -> i32 {
             return -1;
         }
         cstr!("/sbin").follow_link().set_secontext(cstr!("u:object_r:rootfs:s0")).ok();
-        // Recreate old sbin contents from backup
         recreate_sbin("/root", false);
-        // Remount / ro
         let _ = mount(
             None::<&str>,
             "/",
@@ -156,7 +151,6 @@ fn mount_sbin() -> i32 {
             None::<&str>,
         );
     } else {
-        // SAR/VSR: mount tmpfs on /sbin, mirror system_root
         if tmpfs_mount("/sbin") != 0 {
             return -1;
         }
@@ -166,7 +160,6 @@ fn mount_sbin() -> i32 {
         let sysroot = format!("{}/system_root", mirdir);
         let _ = fs::create_dir_all(&intlroot);
         let _ = fs::create_dir_all(&sysroot);
-        // Bind mount / to mirror
         let _ = mount(
             Some("/"),
             sysroot.as_str(),
@@ -174,10 +167,8 @@ fn mount_sbin() -> i32 {
             MsFlags::MS_BIND,
             None::<&str>,
         );
-        // Recreate sbin from mirror
         let mirror_sbin = format!("{}/sbin", sysroot);
         recreate_sbin(&mirror_sbin, true);
-        // Detach mirror
         let _ = nix::mount::umount2(sysroot.as_str(), nix::mount::MntFlags::MNT_DETACH);
     }
     0
@@ -195,7 +186,6 @@ fn recreate_sbin(mirror: &str, use_bind_mount: bool) {
         let name_str = name.to_string_lossy();
         let sbin_path = format!("/sbin/{}", name_str);
         let src_path = format!("{}/{}", mirror, name_str);
-        // Skip if already exists in magisk tmp
         let tmp_path = if magisk_tmp.is_empty() {
             format!("/sbin/{}", name_str)
         } else {
@@ -523,7 +513,6 @@ impl MagiskAction {
                 } else if tmpfs_mount(magisk_tmp) != 0 {
                     return Ok(-1);
                 }
-                // Copy all binaries
                 let bins = ["magisk", "magisk32", "magiskpolicy", "stub.apk"];
                 for bin in &bins {
                     let src = format!("{}/{}", bin_dir, bin);
@@ -538,9 +527,6 @@ impl MagiskAction {
                 }
                 let _ = fs::create_dir_all(INTERNAL_DIR);
                 let _ = fs::create_dir(DEVICEDIR);
-                // Mark system install mode so daemon can detect it
-                let flag_path = format!("{}/{}", INTERNAL_DIR, "system_mode");
-                let _ = fs::write(&flag_path, "");
                 install_applet(magisk_tmp);
             }
             MountSbin(_) => {
@@ -561,7 +547,6 @@ pub fn magisk_main(argc: i32, argv: *mut *mut c_char) -> i32 {
         exit(1);
     }
     let mut cmds = CmdArgs::new(argc, argv.cast()).0;
-    // Handle --auto-selinux prefix: change selinux context, then strip it and continue
     if cmds.len() >= 2 && cmds[1] == "--auto-selinux" {
         handle_auto_selinux();
         cmds.remove(1);

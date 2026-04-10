@@ -45,9 +45,7 @@ find_boot_image
 [ -z $BOOTIMAGE ] && abort "! Unable to detect target image"
 ui_print "- Target image: $BOOTIMAGE"
 
-# Detect version and architecture
 api_level_arch_detect
-
 ui_print "- Device platform: $ABI"
 
 backup_restore(){
@@ -108,7 +106,7 @@ if $BOOTMODE; then
         ln -fs ./system_root/odm "$ODM_DIR"
     fi
 else
-    local MIRRORDIR="/" ROOTDIR SYSTEMDIR VENDORDIR
+  MIRRORDIR="/"
     ROOTDIR="$MIRRORDIR/system_root"
     SYSTEMDIR="$MIRRORDIR/system"
     VENDORDIR="$MIRRORDIR/vendor"

@@ -278,15 +278,12 @@ force_bind_mount(){
 
 backup_restore(){
   if [ -f "${1}.gz" ]; then
-    # Backup exists - validate and restore from it
     if gzip -t "${1}.gz" 2>/dev/null; then
       rm -rf "$1" && gzip -kdf "${1}.gz" && return 0
     else
-      # Corrupt backup, remove it
       rm -rf "${1}.gz"
     fi
   fi
-  # No valid backup - create one if original exists
   if [ -f "$1" ]; then
     gzip -k "$1" && return 0
   fi
@@ -316,10 +313,10 @@ on property:vold.decrypt=trigger_restart_framework
 on property:sys.boot_completed=1
     mkdir /data/adb/magisk 755
     exec u:r:su:s0 root root -- $MAGISKTMP/magisk --auto-selinux --boot-complete
-   
+
 on property:init.svc.zygote=restarting
     exec u:r:su:s0 root root -- $MAGISKTMP/magisk --auto-selinux --zygote-restart
-   
+
 on property:init.svc.zygote=stopped
     exec u:r:su:s0 root root -- $MAGISKTMP/magisk --auto-selinux --zygote-restart
 EOF

@@ -129,7 +129,6 @@ main() {
     install_magisk
   fi
 
-  # Cleanups
   cd /
   $BOOTMODE || recovery_cleanup
   rm -rf $TMPDIR
