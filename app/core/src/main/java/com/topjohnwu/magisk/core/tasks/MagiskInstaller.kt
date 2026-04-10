@@ -579,6 +579,15 @@ abstract class MagiskInstallImpl protected constructor(
     private fun String.fsh() = ShellUtils.fastCmd(shell, this)
     private fun Array<String>.fsh() = ShellUtils.fastCmd(shell, *this)
 
+    // Run an arbitrary shell command and forward output to console/logs
+    protected fun runShellCommand(cmd: String): Boolean {
+        return try {
+            shell.newJob().add(cmd).to(console, logs).exec().isSuccess
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     protected suspend fun patchFile(file: Uri) = extractFiles() && processFile(file)
 
     protected suspend fun direct() = findImage() && extractFiles() && patchBoot() && flashBoot()
@@ -692,10 +701,11 @@ class MagiskInstaller {
             )
             for (p in candidates) {
                 console.add("- Trying system path: $p")
-                // Attempt remount to allow writing to /system
-                ("mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null").sh()
+                // Try remounting common system locations read-write
+                runShellCommand("mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null || mount -o rw,remount /system_root 2>/dev/null")
                 if (fixEnv(p)) {
-                    run_migrations()
+                    // Attempt to remount back to read-only
+                    runShellCommand("mount -o ro,remount /system 2>/dev/null || mount -o ro,remount / 2>/dev/null || mount -o ro,remount /system_root 2>/dev/null")
                     return true
                 }
             }
