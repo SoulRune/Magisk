@@ -538,6 +538,9 @@ impl MagiskAction {
                 }
                 let _ = fs::create_dir_all(INTERNAL_DIR);
                 let _ = fs::create_dir(DEVICEDIR);
+                // Mark system install mode so daemon can detect it
+                let flag_path = format!("{}/{}", INTERNAL_DIR, "system_mode");
+                let _ = fs::write(&flag_path, "");
                 install_applet(magisk_tmp);
             }
             MountSbin(_) => {

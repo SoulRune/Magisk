@@ -17,7 +17,7 @@ env_check() {
   if [ "$2" -ge 25000 ]; then
     [ -f "$MAGISKBIN/magiskpolicy" ] || return 1
   fi
-  if [ "$2" -ge 25210 ]; then
+  if [ "$2" -ge 25210 ] && [ -f "$MAGISKTMP/.magisk/config" ]; then
     [ -b "$MAGISKTMP/.magisk/device/preinit" ] || [ -b "$MAGISKTMP/.magisk/block/preinit" ] || return 2
   fi
   grep -xqF "MAGISK_VER='$1'" "$MAGISKBIN/util_functions.sh" || return 3

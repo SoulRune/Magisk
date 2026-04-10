@@ -65,6 +65,7 @@ pub struct MagiskD {
     pub sdk_int: i32,
     pub is_emulator: bool,
     is_recovery: bool,
+    pub is_system_mode: bool,
     exe_attr: FileAttr,
 }
 
@@ -321,6 +322,7 @@ fn daemon_entry() {
         .join_path(magisk_tmp)
         .join_path(MAIN_CONFIG);
     let mut is_recovery = false;
+    let mut is_system_mode = false;
     if let Ok(main_config) = tmp_path.open(OFlag::O_RDONLY | OFlag::O_CLOEXEC) {
         BufReader::new(main_config).for_each_prop(|key, val| {
             if key == "RECOVERYMODE" {
@@ -329,6 +331,16 @@ fn daemon_entry() {
             }
             true
         });
+    }
+    // Check for system install mode flag
+    {
+        let flag_path = cstr::buf::new::<64>()
+            .join_path(magisk_tmp)
+            .join_path(".magisk/system_mode");
+        is_system_mode = flag_path.exists();
+        if is_system_mode {
+            info!("* Running in system install mode");
+        }
     }
     tmp_path.truncate(magisk_tmp.len());
 
@@ -399,6 +411,7 @@ fn daemon_entry() {
         sdk_int,
         is_emulator,
         is_recovery,
+        is_system_mode,
         exe_attr,
         ..Default::default()
     };
