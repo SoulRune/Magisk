@@ -555,6 +555,9 @@ abstract class MagiskInstallImpl protected constructor(
 
     private fun flashBoot() = "direct_install $installDir $srcBoot".sh().isSuccess
 
+    protected suspend fun directSystem() = extractFiles() &&
+        "xdirect_install_system \"$installDir\" \"dummy\" \"$AppApkPath\"".sh().isSuccess
+
     private suspend fun postOTA(): Boolean {
         try {
             val bootctl = File.createTempFile("bootctl", null, context.cacheDir)
@@ -579,15 +582,6 @@ abstract class MagiskInstallImpl protected constructor(
     private fun String.fsh() = ShellUtils.fastCmd(shell, this)
     private fun Array<String>.fsh() = ShellUtils.fastCmd(shell, *this)
 
-    // Run an arbitrary shell command and forward output to console/logs
-    protected fun runShellCommand(cmd: String): Boolean {
-        return try {
-            shell.newJob().add(cmd).to(console, logs).exec().isSuccess
-        } catch (e: Exception) {
-            false
-        }
-    }
-
     protected suspend fun patchFile(file: Uri) = extractFiles() && processFile(file)
 
     protected suspend fun direct() = findImage() && extractFiles() && patchBoot() && flashBoot()
@@ -595,17 +589,7 @@ abstract class MagiskInstallImpl protected constructor(
     protected suspend fun secondSlot() =
         findSecondary() && extractFiles() && patchBoot() && flashBoot() && postOTA()
 
-    protected suspend fun fixEnv(magiskBinOverride: String? = null): Boolean {
-        if (!::installDir.isInitialized) {
-            if (!extractFiles()) return false
-        }
-        return if (magiskBinOverride == null) {
-            "fix_env $installDir".sh().isSuccess
-        } else {
-            // Try writing to provided system path
-            ("MAGISKBIN=$magiskBinOverride fix_env $installDir").sh().isSuccess
-        }
-    }
+    protected suspend fun fixEnv() = extractFiles() && "fix_env $installDir".sh().isSuccess
 
     protected fun restore() = findImage() && "restore_imgs $srcBoot".sh().isSuccess
 
@@ -681,36 +665,18 @@ class MagiskInstaller {
         override suspend fun operations() = direct()
     }
 
+    class DirectSystem(
+        console: MutableList<String>,
+        logs: MutableList<String>
+    ) : ConsoleInstaller(console, logs) {
+        override suspend fun operations() = directSystem()
+    }
+
     class Emulator(
         console: MutableList<String>,
         logs: MutableList<String>
     ) : ConsoleInstaller(console, logs) {
         override suspend fun operations() = fixEnv()
-    }
-
-    class System(
-        console: MutableList<String>,
-        logs: MutableList<String>
-    ) : ConsoleInstaller(console, logs) {
-        override suspend fun operations(): Boolean {
-            val candidates = listOf(
-                "/system/adb/magisk",
-                "/system/xbin/magisk",
-                "/system/bin/magisk",
-                "/vendor/bin/magisk"
-            )
-            for (p in candidates) {
-                console.add("- Trying system path: $p")
-                // Try remounting common system locations read-write
-                runShellCommand("mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null || mount -o rw,remount /system_root 2>/dev/null")
-                if (fixEnv(p)) {
-                    // Attempt to remount back to read-only
-                    runShellCommand("mount -o ro,remount /system 2>/dev/null || mount -o ro,remount / 2>/dev/null || mount -o ro,remount /system_root 2>/dev/null")
-                    return true
-                }
-            }
-            return false
-        }
     }
 
     class Uninstall(

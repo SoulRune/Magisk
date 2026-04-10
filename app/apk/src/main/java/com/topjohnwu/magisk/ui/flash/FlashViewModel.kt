@@ -71,9 +71,8 @@ class FlashViewModel : BaseViewModel() {
                     else
                         MagiskInstaller.Direct(outItems, logItems).exec()
                 }
-                Const.Value.FLASH_SYSTEM -> {
-                    // Attempt installing magisk directly into common system locations
-                    MagiskInstaller.System(outItems, logItems).exec()
+                Const.Value.FLASH_MAGISK_SYSTEM -> {
+                    MagiskInstaller.DirectSystem(outItems, logItems).exec()
                 }
                 Const.Value.FLASH_INACTIVE_SLOT -> {
                     showReboot = false

@@ -199,9 +199,9 @@
                             android:text="@string/direct_install" />
 
                         <RadioButton
-                            android:id="@+id/method_system"
+                            android:id="@+id/method_direct_system"
                             style="@style/WidgetFoundation.RadioButton"
-                            gone="@{viewModel.rooted}"
+                            gone="@{!viewModel.allowSystemInstall}"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/direct_install_system" />

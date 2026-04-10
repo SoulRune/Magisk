@@ -111,17 +111,16 @@ class FlashFragment : BaseFragment<FragmentFlashMd2Binding>(), MenuProvider {
                 .setArguments(args.toBundle())
                 .createPendingIntent()
 
-        private fun flashType(isSecondSlot: Boolean) =
-            if (isSecondSlot) Const.Value.FLASH_INACTIVE_SLOT else Const.Value.FLASH_MAGISK
+        private fun flashType(installMode: Int) = when (installMode) {
+            1 -> Const.Value.FLASH_INACTIVE_SLOT
+            2 -> Const.Value.FLASH_MAGISK_SYSTEM
+            else -> Const.Value.FLASH_MAGISK
+        }
 
         /* Flashing is understood as installing / flashing magisk itself */
 
-        fun flash(isSecondSlot: Boolean) = MainDirections.actionFlashFragment(
-            action = flashType(isSecondSlot)
-        )
-
-        fun flashSystem() = MainDirections.actionFlashFragment(
-            action = Const.Value.FLASH_SYSTEM
+        fun flash(installMode: Int) = MainDirections.actionFlashFragment(
+            action = flashType(installMode)
         )
 
         /* Patching is understood as injecting img files with magisk */

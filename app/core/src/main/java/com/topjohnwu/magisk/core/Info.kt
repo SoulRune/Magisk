@@ -49,6 +49,8 @@ object Info {
         private set
     var isVendorBoot = false
         private set
+    var isBootPatched = false
+        private set
     @JvmField val isZygiskEnabled = System.getenv("ZYGISK_ENABLED") == "1"
     @JvmStatic val isFDE get() = crypto == "block"
     @JvmStatic var ramdisk = false
@@ -116,6 +118,7 @@ object Info {
         slot = getVar("SLOT")
         legacySAR = getBool("LEGACYSAR")
         isVendorBoot = getBool("VENDORBOOT")
+        isBootPatched = getBool("BOOTIMAGE_PATCHED")
 
         // Default presets
         Config.recovery = getBool("RECOVERYMODE")
