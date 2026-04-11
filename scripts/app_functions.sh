@@ -477,11 +477,22 @@ direct_install_system(){
   }
   cleanup_system_installation || return 1
 
-  local magisk_name=magisk
+  local magisk_applet magisk_name
+  if [ "$IS64BIT" = true ] && [ -f "$INSTALLDIR/magisk64" ]; then
+    magisk_name=magisk64
+    magisk_applet="magisk32 magisk64"
+  elif [ -f "$INSTALLDIR/magisk" ]; then
+    magisk_name=magisk
+    magisk_applet="magisk"
+    [ -f "$INSTALLDIR/magisk32" ] && magisk_applet="$magisk_applet magisk32"
+  else
+    magisk_name=magisk32
+    magisk_applet="magisk32"
+  fi
 
   ui_print "- Copy files to system partition"
   mkdir -p "$MIRRORDIR$MAGISKSYSTEMDIR" || return 1
-  for magisk in magisk magisk32 magiskpolicy magiskinit stub.apk; do
+  for magisk in $magisk_applet magiskpolicy magiskinit stub.apk; do
     if [ -f "$INSTALLDIR/$magisk" ]; then
       cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
     fi

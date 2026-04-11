@@ -57,11 +57,14 @@ Available applets:
 }
 
 const RAMFS_MAGIC: u32 = 0x858458f6;
+const OVERLAYFS_MAGIC: i64 = 0x794c7630;
 
 fn is_rootfs() -> bool {
     use num_traits::AsPrimitive;
     if let Ok(s) = statfs(cstr!("/")) {
-        s.filesystem_type() == FsType(RAMFS_MAGIC.as_()) || s.filesystem_type() == TMPFS_MAGIC
+        s.filesystem_type() == FsType(RAMFS_MAGIC.as_())
+            || s.filesystem_type() == TMPFS_MAGIC
+            || s.filesystem_type() == FsType(OVERLAYFS_MAGIC)
     } else {
         false
     }
@@ -513,7 +516,7 @@ impl MagiskAction {
                 } else if tmpfs_mount(magisk_tmp) != 0 {
                     return Ok(-1);
                 }
-                let bins = ["magisk", "magisk32", "magiskpolicy", "stub.apk"];
+                let bins = ["magisk", "magisk32", "magisk64", "magiskpolicy", "stub.apk"];
                 for bin in &bins {
                     let src = format!("{}/{}", bin_dir, bin);
                     let dest = format!("{}/{}", magisk_tmp, bin);
@@ -527,6 +530,17 @@ impl MagiskAction {
                 }
                 let _ = fs::create_dir_all(INTERNAL_DIR);
                 let _ = fs::create_dir(DEVICEDIR);
+
+                // Keep /sbin/magisk compatible across naming schemes.
+                // Some builds ship magisk64/magisk32 and expect magisk to be a symlink.
+                let magisk_path = Path::new("./magisk");
+                if !magisk_path.exists() {
+                    if Path::new("./magisk64").exists() {
+                        let _ = symlink("./magisk64", "./magisk");
+                    } else if Path::new("./magisk32").exists() {
+                        let _ = symlink("./magisk32", "./magisk");
+                    }
+                }
                 install_applet(magisk_tmp);
             }
             MountSbin(_) => {
