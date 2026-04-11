@@ -533,11 +533,11 @@ impl MagiskAction {
 
                 // Keep /sbin/magisk compatible across naming schemes.
                 // Some builds ship magisk64/magisk32 and expect magisk to be a symlink.
-                let magisk_path = Path::new("./magisk");
+                let magisk_path = std::path::Path::new("./magisk");
                 if !magisk_path.exists() {
-                    if Path::new("./magisk64").exists() {
+                    if std::path::Path::new("./magisk64").exists() {
                         let _ = symlink("./magisk64", "./magisk");
-                    } else if Path::new("./magisk32").exists() {
+                    } else if std::path::Path::new("./magisk32").exists() {
                         let _ = symlink("./magisk32", "./magisk");
                     }
                 }
