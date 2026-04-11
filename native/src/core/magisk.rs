@@ -57,14 +57,14 @@ Available applets:
 }
 
 const RAMFS_MAGIC: u32 = 0x858458f6;
-const OVERLAYFS_MAGIC: i64 = 0x794c7630;
+const OVERLAYFS_MAGIC: u32 = 0x794c7630;
 
 fn is_rootfs() -> bool {
     use num_traits::AsPrimitive;
     if let Ok(s) = statfs(cstr!("/")) {
         s.filesystem_type() == FsType(RAMFS_MAGIC.as_())
             || s.filesystem_type() == TMPFS_MAGIC
-            || s.filesystem_type() == FsType(OVERLAYFS_MAGIC)
+            || s.filesystem_type() == FsType(OVERLAYFS_MAGIC.as_())
     } else {
         false
     }
