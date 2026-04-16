@@ -36,6 +36,7 @@ object Info {
     var isRooted = false
     var noDataExec = false
     var patchBootVbmeta = false
+    var isBootPatched = false
 
     @JvmStatic var env = Env()
         private set
@@ -48,8 +49,6 @@ object Info {
     var slot = ""
         private set
     var isVendorBoot = false
-        private set
-    var isBootPatched = false
         private set
     @JvmField val isZygiskEnabled = System.getenv("ZYGISK_ENABLED") == "1"
     @JvmStatic val isFDE get() = crypto == "block"

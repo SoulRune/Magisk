@@ -14,9 +14,6 @@ OUTFD=$2
 COMMONDIR=$INSTALLER/assets
 CHROMEDIR=$INSTALLER/assets/chromeos
 
-APK="$3"
-MAGISKBINTMP=$INSTALLER/bin
-
 if [ ! -f $COMMONDIR/util_functions.sh ]; then
   echo "! Unable to extract zip file!"
   exit 1
@@ -24,15 +21,6 @@ fi
 
 # Load utility functions
 . $COMMONDIR/util_functions.sh
-mkdir -p $MAGISKBINTMP
-
-getvar SYSTEMMODE
-SYSTEMINSTALL="$SYSTEMMODE"
-[ -z "$SYSTEMINSTALL" ] && SYSTEMINSTALL=false
-
-if echo "$3" | grep -q "systemmagisk"; then
-  SYSTEMINSTALL=true
-fi
 
 setup_flashable
 
@@ -89,50 +77,21 @@ rm -f $MAGISKBIN/bootctl $MAGISKBIN/main.jar \
 
 chmod -R 755 $MAGISKBIN
 
-# Copy to temp bin dir
-cat "$APK" >"$MAGISKBIN/magisk.apk" 2>/dev/null
-cp -af $MAGISKBIN/* $MAGISKBINTMP
-chmod -R 755 $MAGISKBINTMP
-
 # addon.d
-ADDOND=/system/addon.d
-ADDOND_MAGISK=$ADDOND/magisk
-
-if [ "$SYSTEMINSTALL" == "true" ]; then
-  unzip -oj "$APK" "assets/app_functions.sh"
-  BOOTMODE_OLD="$BOOTMODE"
-  . ./app_functions.sh
-  BOOTMODE="$BOOTMODE_OLD"
-  . $COMMONDIR/util_functions.sh
-  ADDOND_MAGISK=/system/etc/init/magisk
-  [ -f "$ADDOND/99-magisk.sh" ] && sed -i "s/^SYSTEMINSTALL=.*/SYSTEMINSTALL=true/g" $ADDOND/99-magisk.sh
-  if $BOOTMODE; then
-    direct_install_system "$MAGISKBINTMP" || { cleanup_system_installation; abort "! Installation failed"; }
-  else
-    direct_install_system "$MAGISKBINTMP" || { cleanup_system_installation; abort "! Installation failed"; }
-  fi
-else
-  install_magisk
-fi
-
 if [ -d /system/addon.d ]; then
   ui_print "- Adding addon.d survival script"
   blockdev --setrw /dev/block/mapper/system$SLOT 2>/dev/null
   mount -o rw,remount /system || mount -o rw,remount /
-  rm -rf /system/addon.d/99-magisk.sh 2>/dev/null
-  rm -rf /system/addon.d/magisk 2>/dev/null
-  if [ "$ADDOND_MAGISK" == "/system/addon.d/magisk" ]; then
-    mkdir -p /system/addon.d/magisk
-  fi
-  cp -af $MAGISKBINTMP/* $ADDOND_MAGISK
-  if [ "$ADDOND_MAGISK" == "/system/addon.d/magisk" ]; then
-    mv /system/addon.d/magisk/boot_patch.sh /system/addon.d/magisk/boot_patch.sh.in
-  fi
-  mv $ADDOND_MAGISK/addon.d.sh /system/addon.d/99-magisk.sh
-  if [ "$SYSTEMINSTALL" == "true" ]; then
-    sed -i "s/^SYSTEMINSTALL=.*/SYSTEMINSTALL=true/g" /system/addon.d/99-magisk.sh
-  fi
+  ADDOND=/system/addon.d/99-magisk.sh
+  cp -af $COMMONDIR/addon.d.sh $ADDOND
+  chmod 755 $ADDOND
 fi
+
+##################
+# Image Patching
+##################
+
+install_magisk
 
 # Cleanups
 $BOOTMODE || recovery_cleanup

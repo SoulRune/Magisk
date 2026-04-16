@@ -10,7 +10,7 @@ use crate::mount::{clean_mounts, setup_preinit_dir};
 use crate::resetprop::get_prop;
 use crate::selinux::restorecon;
 use base::const_format::concatcp;
-use base::{BufReadExt, FsPathBuilder, ResultExt, cstr, error, info, warn};
+use base::{BufReadExt, FsPathBuilder, ResultExt, cstr, error, info};
 use bitflags::bitflags;
 use nix::fcntl::OFlag;
 use std::io::BufReader;
@@ -29,47 +29,6 @@ bitflags! {
 }
 
 impl MagiskD {
-    fn zygisk_prereq_ready(&self) -> bool {
-        if !self.zygisk_enabled.load(Ordering::Relaxed) {
-            return false;
-        }
-
-        #[cfg(target_pointer_width = "64")]
-        {
-            let z64 = cstr::buf::new::<64>()
-                .join_path(get_magisk_tmp())
-                .join_path("magisk");
-            if cstr!("/system/bin/linker64").exists() && !z64.exists() {
-                warn!("* Zygisk binary missing: {}", z64);
-                return false;
-            }
-
-            let need_32_zygote = get_prop(cstr!("ro.zygote")).contains("32");
-            if need_32_zygote && cstr!("/system/bin/linker").exists() {
-                let z32 = cstr::buf::new::<64>()
-                    .join_path(get_magisk_tmp())
-                    .join_path("magisk32");
-                if !z32.exists() {
-                    warn!("* Zygisk 32-bit binary missing: {}", z32);
-                    return false;
-                }
-            }
-        }
-
-        #[cfg(target_pointer_width = "32")]
-        {
-            let z32 = cstr::buf::new::<64>()
-                .join_path(get_magisk_tmp())
-                .join_path("magisk");
-            if !z32.exists() {
-                warn!("* Zygisk binary missing: {}", z32);
-                return false;
-            }
-        }
-
-        true
-    }
-
     fn setup_magisk_env(&self) -> bool {
         info!("* Initializing Magisk environment");
 
@@ -190,13 +149,10 @@ impl MagiskD {
         }
 
         exec_common_scripts(cstr!("post-fs-data"));
-        let zygisk_db = self.get_db_setting(DbEntryKey::ZygiskConfig) != 0;
-        self.zygisk_enabled.store(zygisk_db, Ordering::Release);
-        let zygisk_ready = self.zygisk_prereq_ready();
-        if zygisk_db && !zygisk_ready {
-            warn!("* Zygisk prerequisites are not ready; keep disabled to avoid bootloop");
-        }
-        self.zygisk_enabled.store(zygisk_db && zygisk_ready, Ordering::Release);
+        self.zygisk_enabled.store(
+            self.get_db_setting(DbEntryKey::ZygiskConfig) != 0,
+            Ordering::Release,
+        );
         initialize_denylist();
         self.handle_modules();
         clean_mounts();

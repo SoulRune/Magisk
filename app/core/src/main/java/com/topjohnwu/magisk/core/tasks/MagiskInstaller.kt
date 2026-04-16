@@ -555,9 +555,6 @@ abstract class MagiskInstallImpl protected constructor(
 
     private fun flashBoot() = "direct_install $installDir $srcBoot".sh().isSuccess
 
-    protected suspend fun directSystem() = extractFiles() &&
-        "xdirect_install_system \"$installDir\" \"dummy\" \"$AppApkPath\"".sh().isSuccess
-
     private suspend fun postOTA(): Boolean {
         try {
             val bootctl = File.createTempFile("bootctl", null, context.cacheDir)
@@ -585,6 +582,9 @@ abstract class MagiskInstallImpl protected constructor(
     protected suspend fun patchFile(file: Uri) = extractFiles() && processFile(file)
 
     protected suspend fun direct() = findImage() && extractFiles() && patchBoot() && flashBoot()
+
+    protected suspend fun directSystem() = extractFiles() &&
+        "xdirect_install_system \"$installDir\" \"dummy\" \"$AppApkPath\"".sh().isSuccess
 
     protected suspend fun secondSlot() =
         findSecondary() && extractFiles() && patchBoot() && flashBoot() && postOTA()

@@ -17,7 +17,7 @@ env_check() {
   if [ "$2" -ge 25000 ]; then
     [ -f "$MAGISKBIN/magiskpolicy" ] || return 1
   fi
-  if [ "$2" -ge 25210 ] && [ -f "$MAGISKTMP/.magisk/config" ]; then
+  if [ "$2" -ge 25210 ]; then
     [ -b "$MAGISKTMP/.magisk/device/preinit" ] || [ -b "$MAGISKTMP/.magisk/block/preinit" ] || return 2
   fi
   grep -xqF "MAGISK_VER='$1'" "$MAGISKBIN/util_functions.sh" || return 3
@@ -222,39 +222,44 @@ run_migrations() { return; }
 grep_prop() { return; }
 
 ##############################
-# System Install Functions
+# System Install Utilities
 ##############################
+
+# Ensure ui_print fallback
+type ui_print >/dev/null 2>&1 || ui_print() { echo "$1"; }
 
 MAGISKSYSTEMDIR="/system/etc/init/magisk"
 
-random_str(){
-  local FROM="$1"
-  local TO="$2"
-  tr -dc A-Za-z0-9 </dev/urandom | head -c $(($FROM+$(($RANDOM%$(($TO-$FROM+1))))))
+random_str() {
+  local FROM TO
+  FROM="$1"; TO="$2"
+  tr -dc A-Za-z0-9 </dev/urandom | head -c $(($FROM + $(($RANDOM % $(($TO - $FROM + 1))))))
 }
 
-is_rootfs(){
+is_rootfs() {
   if ! $BOOTMODE && [ -d /system_root ] && mountpoint /system_root; then
     return 1
   fi
+  local mnt_type
   mnt_type="$(head -1 /proc/self/mountinfo | awk '{ printf $9 }')"
-  if $BOOTMODE && [ "$mnt_type" == "rootfs" -o "$mnt_type" == "tmpfs" ]; then
+  if $BOOTMODE && [ "$mnt_type" = "rootfs" -o "$mnt_type" = "tmpfs" ]; then
     return 0
   fi
   return 1
 }
 
-mkblknode(){
-  local blk_mm="$(mountpoint -d "$2" | sed "s/:/ /g")"
+mkblknode() {
+  local blk_mm
+  blk_mm="$(mountpoint -d "$2" | sed "s/:/ /g")"
   mknod "$1" -m 666 b $blk_mm
 }
 
-warn_system_ro(){
+warn_system_ro() {
   ui_print "! System partition is read-only"
   return 1
 }
 
-remount_check(){
+remount_check() {
   local mode="$1"
   local part="$(realpath "$2")"
   local ignore_not_exist="$3"
@@ -265,40 +270,56 @@ remount_check(){
   mount -o "$mode,remount" "$part"
   local IFS=$'\t\n ,'
   for i in $(cat /proc/mounts | grep " $part " | awk '{ print $4 }'); do
-    test "$i" == "$mode" && return 0
+    test "$i" = "$mode" && return 0
   done
   return 1
 }
 
-force_bind_mount(){
+force_bind_mount() {
   mount -o bind,private "$1" "$2"
   mount -o rw,remount "$2"
   remount_check rw "$2" || warn_system_ro
 }
 
-backup_restore(){
-  if [ -f "${1}.gz" ]; then
-    if gzip -t "${1}.gz" 2>/dev/null; then
-      rm -rf "$1" && gzip -kdf "${1}.gz" && return 0
-    else
-      rm -rf "${1}.gz"
-    fi
-  fi
-  if [ -f "$1" ]; then
+backup_restore() {
+  # if gz is not found and orig file is found, backup to gz
+  if [ ! -f "${1}.gz" ] && [ -f "$1" ]; then
     gzip -k "$1" && return 0
+  elif [ -f "${1}.gz" ]; then
+    # if gz found, restore from gz
+    rm -rf "$1" && gzip -kdf "${1}.gz" && return 0
   fi
   return 1
 }
 
-restore_from_bak(){
+restore_from_bak() {
   backup_restore "$1" && rm -rf "${1}.gz"
 }
 
-magiskrc(){
+cleanup_system_installation() {
+  rm -rf "$MIRRORDIR${MAGISKSYSTEMDIR}"
+  rm -rf "$MIRRORDIR${MAGISKSYSTEMDIR}.rc"
+  backup_restore "$MIRRORDIR/system/etc/init/bootanim.rc" \
+    && rm -rf "$MIRRORDIR/system/etc/init/bootanim.rc.gz"
+  if [ -e "$MIRRORDIR${MAGISKSYSTEMDIR}" ] || [ -e "$MIRRORDIR${MAGISKSYSTEMDIR}.rc" ]; then
+    return 1
+  fi
+}
+
+installer_cleanup() {
+  if $BOOTMODE; then
+    umount -l "/proc/$$/attr"
+  else
+    recovery_cleanup
+  fi
+  mount -o ro,remount /
+}
+
+magiskrc() {
   local MAGISKTMP="$1"
   local magisk_name="$2"
 
-  cat <<EOF
+cat <<EOF
 on post-fs-data
     start logd
     exec u:r:su:s0 root root -- $MAGISKSYSTEMDIR/magiskpolicy --live --magisk
@@ -322,36 +343,15 @@ on property:init.svc.zygote=stopped
 EOF
 }
 
-cleanup_system_installation(){
-  rm -rf "$MIRRORDIR${MAGISKSYSTEMDIR}"
-  rm -rf "$MIRRORDIR${MAGISKSYSTEMDIR}.rc"
-  backup_restore "$MIRRORDIR/system/etc/init/bootanim.rc" \
-    && rm -rf "$MIRRORDIR/system/etc/init/bootanim.rc.gz"
-  if [ -e "$MIRRORDIR${MAGISKSYSTEMDIR}" ] || [ -e "$MIRRORDIR${MAGISKSYSTEMDIR}.rc" ]; then
-    return 1
-  fi
-}
-
-installer_cleanup(){
-  if $BOOTMODE; then
-    if mountpoint -q "/proc/$$/attr"; then
-      umount -l "/proc/$$/attr" 2>/dev/null
-    fi
-  else
-    recovery_cleanup
-  fi
-  mount -o ro,remount /
-}
-
-install_addond(){
+install_addond() {
   local installDir="$MAGISKBIN"
   local AppApkPath="$1"
   local SYSTEM_INSTALL="$2"
   [ -z "$SYSTEM_INSTALL" ] && SYSTEM_INSTALL=false
-  addond=/system/addon.d
+  local addond=/system/addon.d
   test ! -d $addond && return
   ui_print "- Adding addon.d survival script"
-  BLOCKNAME="/dev/block/system_block.$(random_str 5 20)"
+  local BLOCKNAME="/dev/block/system_block.$(random_str 5 20)"
   rm -rf "$BLOCKNAME"
   if is_rootfs; then
     mkblknode "$BLOCKNAME" /system
@@ -361,12 +361,10 @@ install_addond(){
   blockdev --setrw "$BLOCKNAME"
   rm -rf "$BLOCKNAME"
   mount -o rw,remount /
-  if mountpoint -q /system; then
-    mount -o rw,remount /system
-  fi
+  mount -o rw,remount /system
   rm -rf $addond/99-magisk.sh 2>/dev/null
   rm -rf $addond/magisk 2>/dev/null
-  if [ "$SYSTEM_INSTALL" == "true" ]; then
+  if [ "$SYSTEM_INSTALL" = "true" ]; then
     cp -prLf "$installDir"/. /system/etc/init/magisk || { ui_print "! Failed to install addon.d"; return; }
     mv "$installDir/addon.d.sh" $addond/99-magisk.sh
     cp "$AppApkPath" /system/etc/init/magisk/magisk.apk
@@ -380,20 +378,19 @@ install_addond(){
     cp "$AppApkPath" $addond/magisk/magisk.apk
   fi
   mount -o ro,remount /
-  if mountpoint -q /system; then
-    mount -o ro,remount /system
-  fi
+  mount -o ro,remount /system
 }
 
-direct_install_system(){
-  print_title "Magisk (System Mode)"
-  print_title "Powered by Magisk"
+direct_install_system() {
+  echo "************************************"
+  echo " Magisk System Mode Installation"
+  echo "************************************"
   api_level_arch_detect
   local INSTALLDIR="$1"
 
   ui_print "- Remount system partition as read-write"
-  MIRRORDIR="/proc/$$/attr"
-  local ROOTDIR SYSTEMDIR VENDORDIR
+  # Use kernel trick to clean up mirrors automatically when installer completed
+  local MIRRORDIR="/proc/$$/attr" ROOTDIR SYSTEMDIR VENDORDIR ODM_DIR
 
   ROOTDIR="$MIRRORDIR/system_root"
   SYSTEMDIR="$MIRRORDIR/system"
@@ -403,9 +400,8 @@ direct_install_system(){
   local MAGISKTMP_TO_INSTALL=/sbin
 
   if $BOOTMODE; then
-    if mountpoint -q "/proc/$$/attr"; then
-      umount -l "/proc/$$/attr" 2>/dev/null
-    fi
+    umount -l "/proc/$$/attr"
+    # setup mirrors to get the original content
     mount -t tmpfs -o 'mode=0755' tmpfs "$MIRRORDIR" || return 1
     if is_rootfs; then
       ROOTDIR=/
@@ -423,6 +419,7 @@ direct_install_system(){
       fi
     fi
 
+    # we are modifying system directly so we need to create /sbin if it does not exist
     if [ ! -d "$ROOTDIR"/sbin ]; then
       rm -rf "$ROOTDIR"/sbin
       mkdir "$ROOTDIR"/sbin
@@ -432,6 +429,7 @@ direct_install_system(){
       fi
     fi
 
+    # check if /vendor is separated fs
     if mountpoint -q /vendor; then
       mkdir "$VENDORDIR"
       force_bind_mount "/vendor" "$VENDORDIR" || return 1
@@ -439,6 +437,7 @@ direct_install_system(){
       ln -fs ./system/vendor "$VENDORDIR"
     fi
 
+    # check if /odm is separated fs
     if mountpoint -q /odm; then
       mkdir "$ODM_DIR"
       force_bind_mount "/odm" "$ODM_DIR" || return 1
@@ -446,8 +445,7 @@ direct_install_system(){
       ln -fs ./system_root/odm "$ODM_DIR"
     fi
   else
-    MIRRORDIR="/"
-    local ROOTDIR SYSTEMDIR VENDORDIR
+    local MIRRORDIR="/"
     ROOTDIR="$MIRRORDIR/system_root"
     SYSTEMDIR="$MIRRORDIR/system"
     VENDORDIR="$MIRRORDIR/vendor"
@@ -458,6 +456,7 @@ direct_install_system(){
     remount_check rw "$VENDORDIR" 0 || { warn_system_ro; return 1; }
     remount_check rw "$ODM_DIR" 0 || { warn_system_ro; return 1; }
 
+    # we are modifying system directly so we need to create /sbin if it does not exist
     if [ -d "$ROOTDIR" ] && [ ! -d "$ROOTDIR"/sbin ]; then
       rm -rf "$ROOTDIR"/sbin
       mkdir "$ROOTDIR"/sbin
@@ -471,37 +470,30 @@ direct_install_system(){
   ui_print "- Cleaning up environment..."
   {
     local checkfile="$MIRRORDIR/system/.check_$(random_str 10 20)"
+    # test write, need at least 20mb
     dd if=/dev/zero of="$checkfile" bs=1024 count=20000 || \
       { rm -rf "$checkfile"; ui_print "! Insufficient free space or system write protection"; return 1; }
     rm -rf "$checkfile"
   }
   cleanup_system_installation || return 1
 
-  local magisk_applet magisk_name
-  if [ "$IS64BIT" = true ] && [ -f "$INSTALLDIR/magisk64" ]; then
+  local magisk_applet=magisk32 magisk_name=magisk32
+  if [ "$IS64BIT" = true ]; then
     magisk_name=magisk64
     magisk_applet="magisk32 magisk64"
-  elif [ -f "$INSTALLDIR/magisk" ]; then
-    magisk_name=magisk
-    magisk_applet="magisk"
-    [ -f "$INSTALLDIR/magisk32" ] && magisk_applet="$magisk_applet magisk32"
-  else
-    magisk_name=magisk32
-    magisk_applet="magisk32"
   fi
 
   ui_print "- Copy files to system partition"
   mkdir -p "$MIRRORDIR$MAGISKSYSTEMDIR" || return 1
   for magisk in $magisk_applet magiskpolicy magiskinit stub.apk; do
-    if [ -f "$INSTALLDIR/$magisk" ]; then
-      cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
-    fi
+    cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
   done
   echo -e "SYSTEMMODE=true\nRECOVERYMODE=false" >"$MIRRORDIR$MAGISKSYSTEMDIR/config"
   chcon -R u:object_r:system_file:s0 "$MIRRORDIR$MAGISKSYSTEMDIR"
   chmod -R 700 "$MIRRORDIR$MAGISKSYSTEMDIR"
 
   if [ "$API" -gt 24 ]; then
+    # test live patch
     if $BOOTMODE; then
       ui_print "- Check if kernel supports dynamic SELinux Policy patch"
       if [ -d /sys/fs/selinux ] && ! "$INSTALLDIR/magiskpolicy" --live "permissive su" &>/dev/null; then
@@ -513,30 +505,29 @@ direct_install_system(){
       ui_print "W: Please make sure your kernel can dynamic patch SELinux Policy"
     fi
     if ! is_rootfs; then
-      {
-        ui_print "- Patch sepolicy file"
-        local sepol file
-        for file in /vendor/etc/selinux/precompiled_sepolicy /odm/etc/selinux/precompiled_sepolicy /system/etc/selinux/precompiled_sepolicy /system_root/sepolicy /system_root/sepolicy_debug /system_root/sepolicy.unlocked; do
-          if [ -f "$MIRRORDIR$file" ]; then
-            sepol="$file"
-            break
-          fi
-        done
-        if [ -z "$sepol" ]; then
-          ui_print "! Cannot find sepolicy file"
-          return 1
-        else
-          ui_print "- Target sepolicy is $sepol"
-          backup_restore "$MIRRORDIR$sepol" || { ui_print "! Backup failed"; return 1; }
-          cp -af "$MIRRORDIR$sepol" "$INSTALLDIR/sepol.in"
-          if ! "$INSTALLDIR/magiskpolicy" --load "$INSTALLDIR/sepol.in" --save "$INSTALLDIR/sepol.out" --magisk || ! cp -af "$INSTALLDIR/sepol.out" "$MIRRORDIR$sepol"; then
-            ui_print "! Unable to patch sepolicy file"
-            restore_from_bak "$MIRRORDIR$sepol"
-            return 1
-          fi
-          ui_print "- Patching sepolicy file success!"
+      ui_print "- Patch sepolicy file"
+      local sepol file
+      for file in /vendor/etc/selinux/precompiled_sepolicy /odm/etc/selinux/precompiled_sepolicy /system/etc/selinux/precompiled_sepolicy /system_root/sepolicy /system_root/sepolicy_debug /system_root/sepolicy.unlocked; do
+        if [ -f "$MIRRORDIR$file" ]; then
+          sepol="$file"
+          break
         fi
-      }
+      done
+      if [ -z "$sepol" ]; then
+        ui_print "! Cannot find sepolicy file"
+        return 1
+      else
+        ui_print "- Target sepolicy is $sepol"
+        backup_restore "$MIRRORDIR$sepol" || { ui_print "! Backup failed"; return 1; }
+        # copy file to cache
+        cp -af "$MIRRORDIR$sepol" "$INSTALLDIR/sepol.in"
+        if ! "$INSTALLDIR/magiskinit" --patch-sepol "$INSTALLDIR/sepol.in" "$INSTALLDIR/sepol.out" || ! cp -af "$INSTALLDIR/sepol.out" "$MIRRORDIR$sepol"; then
+          ui_print "! Unable to patch sepolicy file"
+          restore_from_bak "$MIRRORDIR$sepol"
+          return 1
+        fi
+        ui_print "- Patching sepolicy file success!"
+      fi
     fi
     ui_print "- Add init boot script"
     {
@@ -574,9 +565,9 @@ app_init() {
   check_boot_ramdisk && RAMDISKEXIST=true
   get_flags >/dev/null
   run_migrations >/dev/null
+  SHA1=$(grep_prop SHA1 $MAGISKTMP/.magisk/config)
   check_encryption
 
-  SHA1=$(grep_prop SHA1 $MAGISKTMP/.magisk/config)
   BOOTIMAGE_PATCHED=false
   [ ! -z "$SHA1" ] && BOOTIMAGE_PATCHED=true
 

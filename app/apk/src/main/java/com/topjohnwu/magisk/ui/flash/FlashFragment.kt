@@ -111,7 +111,7 @@ class FlashFragment : BaseFragment<FragmentFlashMd2Binding>(), MenuProvider {
                 .setArguments(args.toBundle())
                 .createPendingIntent()
 
-        private fun flashType(installMode: Int) = when (installMode) {
+        private fun flashType(installType: Int) = when (installType) {
             1 -> Const.Value.FLASH_INACTIVE_SLOT
             2 -> Const.Value.FLASH_MAGISK_SYSTEM
             else -> Const.Value.FLASH_MAGISK
@@ -119,8 +119,8 @@ class FlashFragment : BaseFragment<FragmentFlashMd2Binding>(), MenuProvider {
 
         /* Flashing is understood as installing / flashing magisk itself */
 
-        fun flash(installMode: Int) = MainDirections.actionFlashFragment(
-            action = flashType(installMode)
+        fun flash(installType: Int) = MainDirections.actionFlashFragment(
+            action = flashType(installType)
         )
 
         /* Patching is understood as injecting img files with magisk */
