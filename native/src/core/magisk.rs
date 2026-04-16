@@ -336,7 +336,7 @@ fn setup_sbin(source_dir: &str, tmpfs_path: &str) -> LoggedResult<i32> {
         .output();
 
     // Copy binaries from source_dir to tmpfs_path
-    let bins = ["magisk32", "magisk64", "magiskpolicy", "stub.apk"];
+    let bins = ["magisk", "magisk32", "magiskpolicy", "stub.apk"];
     for bin in &bins {
         let src = format!("{}/{}", source_dir, bin);
         let dst = format!("{}/{}", tmpfs_path, bin);
@@ -351,18 +351,6 @@ fn setup_sbin(source_dir: &str, tmpfs_path: &str) -> LoggedResult<i32> {
                 let _ = fs::set_permissions(&dst, fs::Permissions::from_mode(0o755));
             }
         }
-    }
-
-    // Create the main "magisk" symlink pointing to the appropriate binary
-    let magisk_link = format!("{}/magisk", tmpfs_path);
-    #[cfg(target_pointer_width = "64")]
-    let magisk_target = "./magisk64";
-    #[cfg(target_pointer_width = "32")]
-    let magisk_target = "./magisk32";
-
-    let _ = fs::remove_file(&magisk_link);
-    if let Err(e) = symlink(magisk_target, &magisk_link) {
-        eprintln!("Failed to create magisk symlink: {}", e);
     }
 
     // Create applet symlinks (su, resetprop -> magisk)

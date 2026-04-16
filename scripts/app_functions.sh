@@ -276,6 +276,8 @@ remount_check() {
 }
 
 force_bind_mount() {
+  # Try to remount the source rw first (needed for block devices)
+  mount -o rw,remount "$1" 2>/dev/null
   mount -o bind,private "$1" "$2"
   mount -o rw,remount "$2"
   remount_check rw "$2" || warn_system_ro
@@ -317,7 +319,6 @@ installer_cleanup() {
 
 magiskrc() {
   local MAGISKTMP="$1"
-  local magisk_name="$2"
 
 cat <<EOF
 on post-fs-data
@@ -325,7 +326,7 @@ on post-fs-data
     exec u:r:su:s0 root root -- $MAGISKSYSTEMDIR/magiskpolicy --live --magisk
     exec u:r:magisk:s0 root root -- $MAGISKSYSTEMDIR/magiskpolicy --live --magisk
     exec u:r:update_engine:s0 root root -- $MAGISKSYSTEMDIR/magiskpolicy --live --magisk
-    exec u:r:su:s0 root root -- $MAGISKSYSTEMDIR/$magisk_name --auto-selinux --setup-sbin $MAGISKSYSTEMDIR $MAGISKTMP
+    exec u:r:su:s0 root root -- $MAGISKSYSTEMDIR/magisk --auto-selinux --setup-sbin $MAGISKSYSTEMDIR $MAGISKTMP
     exec u:r:su:s0 root root -- $MAGISKTMP/magisk --auto-selinux --post-fs-data
 on nonencrypted
     exec u:r:su:s0 root root -- $MAGISKTMP/magisk --auto-selinux --service
@@ -477,17 +478,15 @@ direct_install_system() {
   }
   cleanup_system_installation || return 1
 
-  local magisk_applet=magisk32 magisk_name=magisk32
-  if [ "$IS64BIT" = true ]; then
-    magisk_name=magisk64
-    magisk_applet="magisk32 magisk64"
-  fi
-
   ui_print "- Copy files to system partition"
   mkdir -p "$MIRRORDIR$MAGISKSYSTEMDIR" || return 1
-  for magisk in $magisk_applet magiskpolicy magiskinit stub.apk; do
-    cat "$INSTALLDIR/$magisk" >"$MIRRORDIR$MAGISKSYSTEMDIR/$magisk" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
+  for binary in magisk magisk32 magiskpolicy magiskinit stub.apk; do
+    if [ -f "$INSTALLDIR/$binary" ]; then
+      cat "$INSTALLDIR/$binary" >"$MIRRORDIR$MAGISKSYSTEMDIR/$binary" || { ui_print "! Unable to write Magisk binaries to system"; return 1; }
+    fi
   done
+  # Verify main binary was copied
+  [ -f "$MIRRORDIR$MAGISKSYSTEMDIR/magisk" ] || { ui_print "! Main magisk binary missing"; return 1; }
   echo -e "SYSTEMMODE=true\nRECOVERYMODE=false" >"$MIRRORDIR$MAGISKSYSTEMDIR/config"
   chcon -R u:object_r:system_file:s0 "$MIRRORDIR$MAGISKSYSTEMDIR"
   chmod -R 700 "$MIRRORDIR$MAGISKSYSTEMDIR"
@@ -536,7 +535,7 @@ direct_install_system() {
         backup_restore "$MIRRORDIR/system/etc/init/bootanim.rc" && hijackrc="$MIRRORDIR/system/etc/init/bootanim.rc"
       fi
     }
-    echo "$(magiskrc "$MAGISKTMP_TO_INSTALL" "$magisk_name")" >>"$hijackrc" || return 1
+    echo "$(magiskrc "$MAGISKTMP_TO_INSTALL")" >>"$hijackrc" || return 1
   fi
 
   ui_print "[*] Reflash your ROM if your ROM is unable to start"
