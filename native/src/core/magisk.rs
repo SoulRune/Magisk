@@ -305,7 +305,6 @@ impl MagiskAction {
 
 fn setup_sbin(source_dir: &str, tmpfs_path: &str) -> LoggedResult<i32> {
     use nix::mount::mount;
-    use base::Utf8CStr;
     use std::path::Path;
 
     // Mount tmpfs at the target path
@@ -320,11 +319,11 @@ fn setup_sbin(source_dir: &str, tmpfs_path: &str) -> LoggedResult<i32> {
     let mount_opts = Utf8CString::from("mode=0755");
 
     mount(
-        Some(magisk_cstr.as_ref()),
-        tmpfs_cstr.as_ref(),
-        Some(tmpfs_type.as_ref()),
+        Some(magisk_cstr.as_utf8_cstr()),
+        tmpfs_cstr.as_utf8_cstr(),
+        Some(tmpfs_type.as_utf8_cstr()),
         MsFlags::empty(),
-        Some(mount_opts.as_ref()),
+        Some(mount_opts.as_utf8_cstr()),
     ).map_err(|e| {
         eprintln!("Failed to mount tmpfs at {}: {}", tmpfs_path, e);
         e
